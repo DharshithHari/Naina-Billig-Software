@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, price, description } = body;
+    const { name, price, description, imageUrl } = body;
 
     if (!name || price === undefined) {
       return NextResponse.json(
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const item = await addInventoryItem({ name, price, description });
+    const item = await addInventoryItem({ name, price, description, imageUrl });
     return NextResponse.json({ success: true, item });
   } catch (error: any) {
     console.error('Error adding inventory item:', error);
