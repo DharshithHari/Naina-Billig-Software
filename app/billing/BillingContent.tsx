@@ -1,21 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { useAuth } from '@/components/AuthProvider';
 import BillForm from '@/components/BillForm';
-import BillPreview from '@/components/BillPreview';
 import { Bill, BillItem } from '@/lib/localStorage';
 
 export default function BillingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isAuthenticated, isLoading, logout } = useAuth();
-  const [bill, setBill] = useState<Bill | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<BillItem[]>([]);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     // Get items from URL params
@@ -44,6 +43,12 @@ export default function BillingContent() {
     items: BillItem[];
     taxRate: number;
   }) => {
+    // Prevent duplicate submissions
+    if (isSubmittingRef.current || isGenerating) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setIsGenerating(true);
     setMessage(null);
 
@@ -76,8 +81,8 @@ export default function BillingContent() {
       const result = await response.json();
 
       if (result.success) {
-        setBill(newBill);
-        setMessage({ type: 'success', text: 'Bill generated and saved successfully!' });
+        // Navigate to bill view page to prevent duplicate generation
+        router.push(`/bill/${encodeURIComponent(newBill.billNumber)}?back=${encodeURIComponent('/billing')}`);
       } else {
         setMessage({ type: 'error', text: result.error || 'Failed to generate bill' });
       }
@@ -85,11 +90,8 @@ export default function BillingContent() {
       setMessage({ type: 'error', text: error.message || 'An error occurred' });
     } finally {
       setIsGenerating(false);
+      isSubmittingRef.current = false;
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const handleBack = () => {
@@ -143,24 +145,13 @@ export default function BillingContent() {
       )}
 
       <div className="content">
-        <div className="form-section no-print">
+        <div className="form-section">
           <BillForm
             onSubmit={handleGenerateBill}
             isSubmitting={isGenerating}
             preSelectedItems={selectedItems}
           />
         </div>
-
-        {bill && (
-          <div className="preview-section">
-            <div className="preview-actions no-print">
-              <button onClick={handlePrint} className="print-button">
-                Print Bill
-              </button>
-            </div>
-            <BillPreview bill={bill} />
-          </div>
-        )}
       </div>
 
       <style jsx>{`

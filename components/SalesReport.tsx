@@ -2,24 +2,35 @@
 
 import { useState, useEffect } from 'react';
 import { Bill } from '@/lib/localStorage';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, parseISO, isWithinInterval } from 'date-fns';
 import BillPreview from './BillPreview';
+
+type FilterPeriod = 'all' | 'day' | 'week' | 'month' | 'year';
 
 export default function SalesReport() {
   const [bills, setBills] = useState<Bill[]>([]);
+  const [allBills, setAllBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
+  const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('all');
+  const [filterDate, setFilterDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
     fetchBills();
   }, []);
+
+  useEffect(() => {
+    filterBills();
+  }, [filterPeriod, filterDate, allBills]);
 
   const fetchBills = async () => {
     try {
       const response = await fetch('/api/bills');
       const result = await response.json();
       if (result.success) {
-        setBills(result.bills.reverse()); // Most recent first
+        const fetchedBills = result.bills.reverse(); // Most recent first
+        setAllBills(fetchedBills);
+        setBills(fetchedBills);
       }
     } catch (error) {
       console.error('Error fetching bills:', error);
@@ -28,12 +39,69 @@ export default function SalesReport() {
     }
   };
 
+  const filterBills = () => {
+    if (filterPeriod === 'all') {
+      setBills(allBills);
+      return;
+    }
+
+    const selectedDate = parseISO(filterDate);
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (filterPeriod) {
+      case 'day':
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+        break;
+      case 'week':
+        startDate = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
+        endDate = endOfWeek(selectedDate, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDate = startOfMonth(selectedDate);
+        endDate = endOfMonth(selectedDate);
+        break;
+      case 'year':
+        startDate = startOfYear(selectedDate);
+        endDate = endOfYear(selectedDate);
+        break;
+      default:
+        setBills(allBills);
+        return;
+    }
+
+    const filtered = allBills.filter(bill => {
+      const billDate = parseISO(bill.date);
+      return isWithinInterval(billDate, { start: startDate, end: endDate });
+    });
+
+    setBills(filtered);
+  };
+
   const getTotalSales = () => {
     return bills.reduce((sum, bill) => sum + bill.total, 0);
   };
 
   const getTotalBills = () => {
     return bills.length;
+  };
+
+  const getFilterLabel = () => {
+    switch (filterPeriod) {
+      case 'day':
+        return format(parseISO(filterDate), 'dd MMM yyyy');
+      case 'week':
+        const weekStart = startOfWeek(parseISO(filterDate), { weekStartsOn: 1 });
+        const weekEnd = endOfWeek(parseISO(filterDate), { weekStartsOn: 1 });
+        return `${format(weekStart, 'dd MMM')} - ${format(weekEnd, 'dd MMM yyyy')}`;
+      case 'month':
+        return format(parseISO(filterDate), 'MMMM yyyy');
+      case 'year':
+        return format(parseISO(filterDate), 'yyyy');
+      default:
+        return 'All Time';
+    }
   };
 
   const handlePrint = () => {
@@ -52,6 +120,40 @@ export default function SalesReport() {
     <div className="sales-report">
       <div className="section-header">
         <h2>Sales Report</h2>
+        <div className="filter-section">
+          <div className="filter-group">
+            <label htmlFor="filterPeriod">Filter Period:</label>
+            <select
+              id="filterPeriod"
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value as FilterPeriod)}
+              className="filter-select"
+            >
+              <option value="all">All Time</option>
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+            </select>
+          </div>
+          {filterPeriod !== 'all' && (
+            <div className="filter-group">
+              <label htmlFor="filterDate">Select Date:</label>
+              <input
+                type="date"
+                id="filterDate"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="filter-date"
+              />
+            </div>
+          )}
+        </div>
+        {filterPeriod !== 'all' && (
+          <div className="filter-info">
+            Showing results for: <strong>{getFilterLabel()}</strong>
+          </div>
+        )}
         <div className="stats">
           <div className="stat-card">
             <div className="stat-label">Total Bills</div>
@@ -139,6 +241,55 @@ export default function SalesReport() {
           color: #333;
           font-size: 1.5rem;
           margin: 0 0 1.5rem 0;
+        }
+
+        .filter-section {
+          display: flex;
+          gap: 1.5rem;
+          margin-bottom: 1rem;
+          flex-wrap: wrap;
+          align-items: flex-end;
+        }
+
+        .filter-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .filter-group label {
+          font-weight: 600;
+          color: #555;
+          font-size: 0.9rem;
+        }
+
+        .filter-select,
+        .filter-date {
+          padding: 0.75rem;
+          border: 2px solid #e0e0e0;
+          border-radius: 6px;
+          font-size: 1rem;
+          transition: border-color 0.2s;
+          background: white;
+        }
+
+        .filter-select:focus,
+        .filter-date:focus {
+          outline: none;
+          border-color: #667eea;
+        }
+
+        .filter-info {
+          background: #f0f0f0;
+          padding: 0.75rem 1rem;
+          border-radius: 6px;
+          margin-bottom: 1rem;
+          color: #555;
+          font-size: 0.9rem;
+        }
+
+        .filter-info strong {
+          color: #333;
         }
 
         .stats {

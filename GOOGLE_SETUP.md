@@ -40,15 +40,19 @@ This guide will help you set up Google Sheets and Google Drive integration for t
 4. Select **JSON** format
 5. Click **Create** - this will download a JSON file
 
-## Step 5: Share Google Drive Folder (Optional)
+## Step 5: Share Google Drive Folder (REQUIRED for Image Uploads)
 
-If you want to use a specific folder for product images:
+**Important**: Service accounts cannot upload files directly to their own Drive. You must share a folder with the service account.
 
 1. Create a folder in Google Drive named "Product Images" (or any name you prefer)
 2. Right-click the folder and select **Share**
 3. Add the service account email (found in the JSON file as `client_email`)
 4. Give it **Editor** access
 5. Click **Send**
+6. **Copy the Folder ID** from the URL:
+   - The URL will look like: `https://drive.google.com/drive/folders/FOLDER_ID`
+   - Copy the `FOLDER_ID` part
+   - Add it to your `.env.local` as `GOOGLE_DRIVE_FOLDER_ID`
 
 ## Step 6: Share Google Sheets (Optional)
 
@@ -86,6 +90,19 @@ GOOGLE_SHEETS_ID=your_spreadsheet_id_here
 # Optional: Google Drive folder name (default: "Product Images")
 GOOGLE_DRIVE_FOLDER_NAME=Product Images
 
+# Optional: Google Drive folder ID (if you've shared a folder with the service account)
+# Get the folder ID from the folder URL: https://drive.google.com/drive/folders/FOLDER_ID
+GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
+
+# Optional: Google Drive user email for domain-wide delegation (Google Workspace only)
+# This allows the service account to impersonate a user and upload to their Drive
+# Requires domain-wide delegation to be enabled in Google Cloud Console
+GOOGLE_DRIVE_USER_EMAIL=user@yourdomain.com
+
+# Optional: Google Drive Shared Drive ID (Google Workspace only)
+# Use a Shared Drive instead of personal Drive
+GOOGLE_DRIVE_SHARED_DRIVE_ID=your_shared_drive_id_here
+
 # Optional: Make Drive files publicly accessible (default: false)
 GOOGLE_DRIVE_PUBLIC_ACCESS=false
 ```
@@ -119,7 +136,35 @@ GOOGLE_DRIVE_PUBLIC_ACCESS=false
 - Make sure the service account has access to the Google Drive folder
 - Verify the service account email is correct
 
-### Images not uploading
+### Images not uploading - "Service Accounts do not have storage quota"
+
+This is a common error. Service accounts cannot upload files directly to their own Drive. You have three options:
+
+**Option 1: Share a folder with the service account (Easiest)**
+1. Create a folder in your Google Drive (e.g., "Product Images")
+2. Right-click the folder and select **Share**
+3. Add your service account email (from `GOOGLE_SERVICE_ACCOUNT_EMAIL`)
+4. Give it **Editor** access
+5. Copy the folder ID from the URL: `https://drive.google.com/drive/folders/FOLDER_ID`
+6. Add to `.env.local`: `GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here`
+
+**Option 2: Use Domain-Wide Delegation (Google Workspace only)**
+1. Enable domain-wide delegation in Google Cloud Console:
+   - Go to your service account > **Show Domain-Wide Delegation**
+   - Enable it and note the Client ID
+2. In Google Admin Console:
+   - Go to **Security** > **API Controls** > **Domain-wide Delegation**
+   - Add your service account Client ID
+   - Add scope: `https://www.googleapis.com/auth/drive`
+3. Add to `.env.local`: `GOOGLE_DRIVE_USER_EMAIL=user@yourdomain.com`
+
+**Option 3: Use a Shared Drive (Google Workspace only)**
+1. Create a Shared Drive in Google Drive
+2. Add your service account as a Manager
+3. Get the Shared Drive ID from the URL
+4. Add to `.env.local`: `GOOGLE_DRIVE_SHARED_DRIVE_ID=your_shared_drive_id_here`
+
+### Other image upload issues
 - Check that Google Drive API is enabled
 - Verify the folder name matches in `GOOGLE_DRIVE_FOLDER_NAME`
 - Check that the service account has Editor access to the folder

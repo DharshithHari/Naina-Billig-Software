@@ -12,11 +12,7 @@ export default function InventoryManagement() {
     name: '',
     price: '',
     description: '',
-    imageUrl: '',
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -40,9 +36,7 @@ export default function InventoryManagement() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setFormData({ name: '', price: '', description: '', imageUrl: '' });
-    setImageFile(null);
-    setImagePreview('');
+    setFormData({ name: '', price: '', description: '' });
     setShowForm(true);
   };
 
@@ -52,10 +46,7 @@ export default function InventoryManagement() {
       name: item.name,
       price: item.price.toString(),
       description: item.description || '',
-      imageUrl: item.imageUrl || '',
     });
-    setImageFile(null);
-    setImagePreview(item.imageUrl || '');
     setShowForm(true);
   };
 
@@ -79,62 +70,6 @@ export default function InventoryManagement() {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadImage = async (file: File): Promise<string | null> => {
-    try {
-      setUploadingImage(true);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      return new Promise((resolve, reject) => {
-        reader.onloadend = async () => {
-          try {
-            const base64String = reader.result as string;
-            const fileName = `${Date.now()}_${file.name}`;
-            
-            const response = await fetch('/api/google/upload-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                imageBase64: base64String,
-                fileName,
-              }),
-            });
-
-            const result = await response.json();
-            if (result.success) {
-              resolve(result.imageUrl);
-            } else {
-              reject(new Error(result.error || 'Failed to upload image'));
-            }
-          } catch (error) {
-            reject(error);
-          } finally {
-            setUploadingImage(false);
-          }
-        };
-        reader.onerror = () => {
-          setUploadingImage(false);
-          reject(new Error('Failed to read image file'));
-        };
-      });
-    } catch (error) {
-      setUploadingImage(false);
-      throw error;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
@@ -146,23 +81,11 @@ export default function InventoryManagement() {
         return;
       }
 
-      let imageUrl = formData.imageUrl;
-      
-      // Upload new image if a file was selected
-      if (imageFile) {
-        try {
-          imageUrl = await uploadImage(imageFile) || formData.imageUrl;
-        } catch (error: any) {
-          setMessage({ type: 'error', text: `Image upload failed: ${error.message}` });
-          return;
-        }
-      }
-
       const url = editingItem ? '/api/inventory' : '/api/inventory';
       const method = editingItem ? 'PUT' : 'POST';
       const body = editingItem
-        ? { id: editingItem.id, name: formData.name, price, description: formData.description, imageUrl }
-        : { name: formData.name, price, description: formData.description, imageUrl };
+        ? { id: editingItem.id, name: formData.name, price, description: formData.description }
+        : { name: formData.name, price, description: formData.description };
 
       const response = await fetch(url, {
         method,
@@ -177,9 +100,7 @@ export default function InventoryManagement() {
           text: editingItem ? 'Item updated successfully' : 'Item added successfully',
         });
         setShowForm(false);
-        setFormData({ name: '', price: '', description: '', imageUrl: '' });
-        setImageFile(null);
-        setImagePreview('');
+        setFormData({ name: '', price: '', description: '' });
         setEditingItem(null);
         fetchInventory();
       } else {
@@ -250,23 +171,6 @@ export default function InventoryManagement() {
                   rows={3}
                 />
               </div>
-              <div className="form-group">
-                <label>Product Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="image-input"
-                />
-                {imagePreview && (
-                  <div className="image-preview">
-                    <img src={imagePreview} alt="Preview" />
-                  </div>
-                )}
-                {uploadingImage && (
-                  <div className="upload-status">Uploading image...</div>
-                )}
-              </div>
               <div className="form-actions">
                 <button type="button" onClick={() => setShowForm(false)} className="cancel-btn">
                   Cancel
@@ -284,7 +188,6 @@ export default function InventoryManagement() {
         <table>
           <thead>
             <tr>
-              <th>Image</th>
               <th>Product Name</th>
               <th>Description</th>
               <th>Price</th>
@@ -294,20 +197,13 @@ export default function InventoryManagement() {
           <tbody>
             {inventory.length === 0 ? (
               <tr>
-                <td colSpan={5} className="empty-state">
+                <td colSpan={4} className="empty-state">
                   No products found. Add your first product!
                 </td>
               </tr>
             ) : (
               inventory.map((item) => (
                 <tr key={item.id}>
-                  <td>
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="product-image" />
-                    ) : (
-                      <div className="no-image">No Image</div>
-                    )}
-                  </td>
                   <td>{item.name}</td>
                   <td>{item.description || '-'}</td>
                   <td>₹{item.price.toFixed(2)}</td>
@@ -454,47 +350,6 @@ export default function InventoryManagement() {
           border: 2px solid #e0e0e0;
           border-radius: 6px;
           font-size: 1rem;
-        }
-
-        .image-input {
-          padding: 0.5rem;
-        }
-
-        .image-preview {
-          margin-top: 1rem;
-        }
-
-        .image-preview img {
-          max-width: 200px;
-          max-height: 200px;
-          border-radius: 8px;
-          border: 2px solid #e0e0e0;
-        }
-
-        .upload-status {
-          margin-top: 0.5rem;
-          color: #667eea;
-          font-weight: 500;
-        }
-
-        .product-image {
-          width: 60px;
-          height: 60px;
-          object-fit: cover;
-          border-radius: 6px;
-          border: 1px solid #e0e0e0;
-        }
-
-        .no-image {
-          width: 60px;
-          height: 60px;
-          background: #f5f5f5;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.75rem;
-          color: #999;
         }
 
         .form-group input:focus,
